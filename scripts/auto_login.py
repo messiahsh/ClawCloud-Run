@@ -675,9 +675,9 @@ class AutoLogin:
                 for s in self.shots[-3:]:
                     self.tg.photo(s, s)
             else:
-                 for s in self.shots[-3:]:
-                     self.tg.photo(s, s)
-                #self.tg.photo(self.shots[-1], "完成")
+                for s in self.shots[-3:]:
+                    self.tg.photo(s, s)
+               # self.tg.photo(self.shots[-1], "完成")
     
     def run(self):
         print("\n" + "="*50)
@@ -704,14 +704,17 @@ class AutoLogin:
             )
             context = browser.new_context(
                 viewport={'width': 1920, 'height': 1080},
-                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36'
+                user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
             )
             page = context.new_page()
+
+            
             page.add_init_script("""
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 });
             """)
+
             
             try:
                 # 预加载 Cookie
