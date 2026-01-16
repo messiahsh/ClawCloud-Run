@@ -8,6 +8,7 @@ ClawCloud 自动登录脚本
 
 import base64
 import os
+import random
 import re
 import sys
 import time
@@ -210,6 +211,10 @@ class AutoLogin:
             try:
                 el = page.locator(s).first
                 if el.is_visible(timeout=3000):
+                    # 模拟人类随机延迟
+                    time.sleep(random.uniform(0.5, 1.5))
+                    el.hover() # 先悬停
+                    time.sleep(random.uniform(0.2, 0.5))
                     el.click()
                     self.log(f"已点击: {desc}", "SUCCESS")
                     return True
@@ -468,7 +473,9 @@ class AutoLogin:
             try:
                 el = page.locator(sel).first
                 if el.is_visible(timeout=2000):
-                    el.fill(code)
+                    el.click()
+                    time.sleep(random.uniform(0.2, 0.5))
+                    el.type(code, delay=random.randint(50, 150))
                     self.log(f"已填入验证码", "SUCCESS")
                     time.sleep(1)
 
@@ -491,6 +498,7 @@ class AutoLogin:
                             pass
 
                     if not submitted:
+                        time.sleep(random.uniform(0.3, 0.8))
                         page.keyboard.press("Enter")
                         self.log("已按 Enter 提交", "SUCCESS")
 
@@ -520,8 +528,19 @@ class AutoLogin:
         self.shot(page, "github_登录页")
         
         try:
-            page.locator('input[name="login"]').fill(self.username)
-            page.locator('input[name="password"]').fill(self.password)
+            # 模拟人工输入
+            user_input = page.locator('input[name="login"]')
+            user_input.click()
+            time.sleep(random.uniform(0.3, 0.8))
+            user_input.type(self.username, delay=random.randint(30, 100))
+
+            time.sleep(random.uniform(0.5, 1.0))
+
+            pass_input = page.locator('input[name="password"]')
+            pass_input.click()
+            time.sleep(random.uniform(0.3, 0.8))
+            pass_input.type(self.password, delay=random.randint(30, 100))
+
             self.log("已输入凭据")
         except Exception as e:
             self.log(f"输入失败: {e}", "ERROR")
@@ -705,7 +724,9 @@ class AutoLogin:
                 "headless": True,
                 "args": [
                     '--no-sandbox',
-                    '--disable-blink-features=AutomationControlled'
+                    '--disable-blink-features=AutomationControlled',
+                    '--disable-infobars',
+                    '--exclude-switches=enable-automation',
                 ]
             }
 
@@ -732,9 +753,31 @@ class AutoLogin:
             )
             page = context.new_page()
             page.add_init_script("""
+                // 基础反检测
                 Object.defineProperty(navigator, 'webdriver', {
                     get: () => undefined
                 });
+
+                // 模拟插件 (Headless Chrome 默认无插件)
+                Object.defineProperty(navigator, 'plugins', {
+                    get: () => [1, 2, 3, 4, 5]
+                });
+
+                // 模拟语言
+                Object.defineProperty(navigator, 'languages', {
+                    get: () => ['en-US', 'en']
+                });
+
+                // 模拟 window.chrome
+                window.chrome = { runtime: {} };
+
+                // 绕过权限检测
+                const originalQuery = window.navigator.permissions.query;
+                window.navigator.permissions.query = (parameters) => (
+                    parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+                );
             """)
             
             try:
