@@ -477,9 +477,8 @@ class AutoLogin:
 
                     # 提交后等待跳转 (增加容错)
                     try:
-                        time.sleep(3)
-                        # 使用 domcontentloaded 替代 networkidle
-                        page.wait_for_load_state('domcontentloaded', timeout=30000)
+                        time.sleep(5)
+                        page.wait_for_load_state('networkidle', timeout=30000)
                     except Exception as e:
                         self.log(f"等待页面加载超时(非致命): {e}", "WARN")
 
@@ -687,9 +686,9 @@ class AutoLogin:
                 for s in self.shots[-3:]:
                     self.tg.photo(s, s)
             else:
-                # for s in self.shots[-3:]:
-                #     self.tg.photo(s, s)
-                self.tg.photo(self.shots[-1], "完成")
+                for s in self.shots[0:]:
+                    self.tg.photo(s, s)
+                #self.tg.photo(self.shots[-1], "完成")
     
     def run(self):
         print("\n" + "="*50)
