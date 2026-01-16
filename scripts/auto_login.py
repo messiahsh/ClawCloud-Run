@@ -672,7 +672,7 @@ class AutoLogin:
         
         if self.shots:
             if not ok:
-                for s in self.shots[-3:]:
+                for s in self.shots[0:]:
                     self.tg.photo(s, s)
             else:
                 # for s in self.shots[-3:]:
