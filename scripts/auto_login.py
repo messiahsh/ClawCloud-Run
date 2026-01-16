@@ -381,52 +381,37 @@ class AutoLogin:
         self.log("需要输入验证码", "WARN")
         shot = self.shot(page, "两步验证_code")
 
-        # 如果是 Security Key (webauthn) 页面，尝试切换到 Authenticator App
-        if 'two-factor/webauthn' in page.url:
-            self.log("检测到 Security Key 页面，尝试切换...", "INFO")
-            try:
-                # 点击 "More options"
-                more_options_button = page.locator('button:has-text("More options")').first
-                if more_options_button.is_visible(timeout=3000):
-                    more_options_button.click()
-                    self.log("已点击 'More options'", "SUCCESS")
-                    time.sleep(1) # 等待菜单出现
-                    self.shot(page, "点击more_options后")
-
-                    # 点击 "Authenticator app"
-                    auth_app_button = page.locator('button:has-text("Authenticator app")').first
-                    if auth_app_button.is_visible(timeout=2000):
-                        auth_app_button.click()
-                        self.log("已选择 'Authenticator app'", "SUCCESS")
-                        time.sleep(2)
-                        page.wait_for_load_state('networkidle', timeout=15000)
-                        shot = self.shot(page, "切换到验证码输入页") # 更新截图
-            except Exception as e:
-                self.log(f"切换验证方式时出错: {e}", "WARN")
-
-        # (保留) 先尝试点击"Use an authentication app"或类似按钮（如果在 mobile 页面）
+        # 尝试切换验证方式 (检测 More options 按钮)
         try:
-            more_options = [
-                'a:has-text("Use an authentication app")',
-                'a:has-text("Enter a code")',
-                'button:has-text("Use an authentication app")',
-                'button:has-text("Authenticator app")',
-                '[href*="two-factor/app"]'
-            ]
-            for sel in more_options:
-                try:
+            # 不再只依赖 URL，直接检查页面元素
+            more_options_button = page.locator('button:has-text("More options")').first
+
+            # 如果能看到 More options，说明当前可能不是 OTP 输入页，或者是 WebAuthn 页
+            if more_options_button.is_visible(timeout=3000):
+                self.log("检测到 'More options'，尝试切换到验证码模式...", "INFO")
+                more_options_button.click()
+                time.sleep(1)
+
+                # 尝试点击 Authenticator app
+                # 兼容 button 和 a 标签，文本可能是 "Authenticator app" 或 "Use 1password" 等其他，这里主要找验证码相关的
+                auth_app_selectors = [
+                    'button:has-text("Authenticator app")',
+                    'a:has-text("Authenticator app")',
+                    'button:has-text("Use an authentication app")',
+                    'a:has-text("Use an authentication app")'
+                ]
+
+                for sel in auth_app_selectors:
                     el = page.locator(sel).first
-                    if el.is_visible(timeout=2000):
+                    if el.is_visible(timeout=1000):
                         el.click()
+                        self.log("已点击切换到 Authenticator app", "SUCCESS")
                         time.sleep(2)
                         page.wait_for_load_state('networkidle', timeout=15000)
-                        self.log("已切换到验证码输入页面", "SUCCESS")
-                        shot = self.shot(page, "两步验证_code_切换后")
+                        shot = self.shot(page, "切换后")
                         break
-                except:
-                    pass
-        except:
-            pass
+        except Exception as e:
+            self.log(f"切换验证方式尝试失败 (非致命): {e}", "WARN")
 
         # 发送提示并等待验证码
         self.tg.send(f"""🔐 <b>需要验证码登录</b>
@@ -597,23 +582,36 @@ class AutoLogin:
         self.log("等待重定向...", "STEP")
         for i in range(wait):
             url = page.url
-            
+
             # 检查是否已跳转到 claw.cloud
             if 'claw.cloud' in url and 'signin' not in url.lower():
                 self.log("重定向成功！", "SUCCESS")
-                
+
                 # 检测并记录区域
                 self.detect_region(url)
-                
+
                 return True
-            
+
             if 'github.com/login/oauth/authorize' in url:
                 self.oauth(page)
-            
+
+            # 如果还在 signin 页面，且能看到 GitHub 按钮，尝试再次点击
+            if 'signin' in url.lower():
+                try:
+                    btn = page.locator('button:has-text("GitHub"), a:has-text("GitHub"), [data-provider="github"]').first
+                    if btn.is_visible(timeout=500):
+                        # 为了避免频繁点击，可以加个间隔或者判断
+                        if i % 5 == 0 and i > 0: # 每5秒尝试再次点击
+                            self.log("检测到仍在登录页，尝试再次点击 GitHub 按钮...", "WARN")
+                            btn.click()
+                            time.sleep(2)
+                except:
+                    pass
+
             time.sleep(1)
             if i % 10 == 0:
                 self.log(f"  等待... ({i}秒)")
-        
+
         self.log("重定向超时", "ERROR")
         return False
     
@@ -727,32 +725,64 @@ class AutoLogin:
                         self.log("已加载 Session Cookie", "SUCCESS")
                     except:
                         self.log("加载 Cookie 失败", "WARN")
-                
+
                 # 1. 访问 ClawCloud 登录入口
                 self.log("步骤1: 打开 ClawCloud 登录页", "STEP")
                 page.goto(SIGNIN_URL, timeout=60000)
-                page.wait_for_load_state('networkidle', timeout=60000)
-                time.sleep(2)
+
+                # 等待页面加载
+                try:
+                    page.wait_for_load_state('networkidle', timeout=30000)
+                except:
+                    pass
+                time.sleep(5) # 多等几秒确保JS加载完成
+
                 self.shot(page, "clawcloud")
-                
-                # 检查当前 URL，可能已经自动跳转到区域
-                current_url = page.url
-                self.log(f"当前 URL: {current_url}")
-  
-            
+
+                # 检查是否直接登录成功 (Cookie生效)
+                if 'signin' not in page.url.lower() and 'claw.cloud' in page.url:
+                    self.log("Cookie 有效，直接登录成功", "SUCCESS")
+                    self.detect_region(page.url)
+                    self.keepalive(page)
+                    new = self.get_session(context)
+                    if new:
+                        self.save_cookie(new)
+                    self.notify(True)
+                    print("\n✅ 成功！\n")
+                    return
+
+                # 检查当前 URL
+                self.log(f"当前 URL: {page.url}")
+
+
                # 2. 点击 GitHub
                 self.log("步骤2: 点击 GitHub", "STEP")
+
+                # 尝试处理可能遮挡的 Cookie Banner (如果有)
+                try:
+                    cookie_btn = page.locator('button:has-text("Accept"), button:has-text("Agree"), [aria-label="Accept cookies"]').first
+                    if cookie_btn.is_visible(timeout=2000):
+                        cookie_btn.click()
+                        time.sleep(1)
+                except:
+                    pass
+
                 if not self.click(page, [
                     'button:has-text("GitHub")',
                     'a:has-text("GitHub")',
                     '[data-provider="github"]'
                 ], "GitHub"):
-                    self.log("找不到按钮", "ERROR")
+                    self.log("找不到 GitHub 按钮", "ERROR")
                     self.notify(False, "找不到 GitHub 按钮")
                     sys.exit(1)
-                
-                time.sleep(3)
-                page.wait_for_load_state('networkidle', timeout=120000)
+
+                # 点击后等待一会，检查是否发生跳转
+                time.sleep(5)
+                try:
+                    page.wait_for_load_state('networkidle', timeout=10000)
+                except:
+                    pass
+
                 self.shot(page, "点击后")
                 url = page.url
                 self.log(f"当前: {url}")
