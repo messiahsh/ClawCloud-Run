@@ -672,12 +672,13 @@ class AutoLogin:
         
         if self.shots:
             if not ok:
-                for s in self.shots[0:]:
+                for s in self.shots[-3:]:
                     self.tg.photo(s, s)
             else:
                 # for s in self.shots[-3:]:
                 #     self.tg.photo(s, s)
-                self.tg.photo(self.shots[-1:], "完成")
+                if self.shots:
+                    self.tg.photo(self.shots[-1], "完成")
     
     def run(self):
         print("\n" + "="*50)
