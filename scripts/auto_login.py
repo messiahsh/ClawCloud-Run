@@ -475,8 +475,14 @@ class AutoLogin:
                         page.keyboard.press("Enter")
                         self.log("已按 Enter 提交", "SUCCESS")
 
-                    time.sleep(3)
-                    page.wait_for_load_state('networkidle', timeout=30000)
+                    # 提交后等待跳转 (增加容错)
+                    try:
+                        time.sleep(3)
+                        # 使用 domcontentloaded 替代 networkidle
+                        page.wait_for_load_state('domcontentloaded', timeout=30000)
+                    except Exception as e:
+                        self.log(f"等待页面加载超时(非致命): {e}", "WARN")
+
                     self.shot(page, "验证码提交后")
 
                     # 检查是否通过
@@ -485,10 +491,18 @@ class AutoLogin:
                         self.tg.send("✅ <b>验证码验证通过</b>")
                         return True
                     else:
-                        self.log("验证码可能错误", "ERROR")
+                        self.log("验证码可能错误或仍在验证页", "ERROR")
                         self.tg.send("❌ <b>验证码可能错误，请检查后重试</b>")
                         return False
-            except:
+            except Exception as e:
+                # 再次检查是否已经通过（防止超时导致的假失败）
+                try:
+                    if "github.com/sessions/two-factor/" not in page.url:
+                        self.log("检测到已跳过验证页，视为成功", "SUCCESS")
+                        return True
+                except:
+                    pass
+                self.log(f"验证流程异常: {e}", "WARN")
                 pass
 
         self.log("没找到验证码输入框", "ERROR")
