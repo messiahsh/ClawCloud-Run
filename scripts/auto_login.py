@@ -17,6 +17,10 @@ import requests
 from playwright.sync_api import sync_playwright
 
 # ==================== 配置 ====================
+# 代理配置 (留空则不使用)
+# 格式: socks5://user:pass@host:port 或 http://user:pass@host:port
+PROXY_DSN = os.environ.get("PROXY_DSN", "").strip()
+
 # 固定登录入口，OAuth后会自动跳转到实际区域
 LOGIN_ENTRY_URL = "https://eu-central-1.run.claw.cloud"
 SIGNIN_URL = f"{LOGIN_ENTRY_URL}/signin"
@@ -696,13 +700,32 @@ class AutoLogin:
             sys.exit(1)
         
         with sync_playwright() as p:
-            browser = p.chromium.launch(
-                headless=True,
-                args=[
+            # 代理配置解析
+            launch_args = {
+                "headless": True,
+                "args": [
                     '--no-sandbox',
                     '--disable-blink-features=AutomationControlled'
                 ]
-            )
+            }
+
+            if PROXY_DSN:
+                try:
+                    p_url = urlparse(PROXY_DSN)
+                    proxy_config = {
+                        "server": f"{p_url.scheme}://{p_url.hostname}:{p_url.port}"
+                    }
+                    if p_url.username:
+                        proxy_config["username"] = p_url.username
+                    if p_url.password:
+                        proxy_config["password"] = p_url.password
+
+                    launch_args["proxy"] = proxy_config
+                    self.log(f"启用代理: {proxy_config['server']}")
+                except Exception as e:
+                    self.log(f"代理配置解析失败: {e}", "ERROR")
+
+            browser = p.chromium.launch(**launch_args)
             context = browser.new_context(
                 viewport={'width': 1920, 'height': 1080},
                 user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36'
