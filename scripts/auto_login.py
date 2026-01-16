@@ -18,7 +18,7 @@ from playwright.sync_api import sync_playwright
 
 # ==================== 配置 ====================
 # 固定登录入口，OAuth后会自动跳转到实际区域
-LOGIN_ENTRY_URL = "https://console.run.claw.cloud"
+LOGIN_ENTRY_URL = "https://eu-central-1.run.claw"
 SIGNIN_URL = f"{LOGIN_ENTRY_URL}/signin"
 DEVICE_VERIFY_WAIT = 30  # Mobile验证 默认等 30 秒
 TWO_FACTOR_WAIT = int(os.environ.get("TWO_FACTOR_WAIT", "120"))  # 2FA验证 默认等 120 秒
@@ -182,8 +182,8 @@ class AutoLogin:
         self.n = 0
         
         # 区域相关
-        self.detected_region = None  # 检测到的区域，如 "ap-southeast-1"
-        self.region_base_url = None  # 检测到的区域基础 URL
+        self.detected_region = 'eu-central-1'  # 检测到的区域，如 "ap-southeast-1"
+        self.region_base_url = 'https://eu-central-1.run.claw'  # 检测到的区域基础 URL
         
     def log(self, msg, level="INFO"):
         icons = {"INFO": "ℹ️", "SUCCESS": "✅", "ERROR": "❌", "WARN": "⚠️", "STEP": "🔹"}
