@@ -215,7 +215,14 @@ class AutoLogin:
                     time.sleep(random.uniform(0.5, 1.5))
                     el.hover() # 先悬停
                     time.sleep(random.uniform(0.2, 0.5))
-                    el.click()
+                    try:
+                        el.click(timeout=3000)
+                    except:
+                        try:
+                            el.scroll_into_view_if_needed(timeout=3000)
+                        except:
+                            pass
+                        el.click(timeout=3000, force=True)
                     self.log(f"已点击: {desc}", "SUCCESS")
                     return True
             except:
@@ -806,19 +813,41 @@ class AutoLogin:
             
                # 2. 点击 GitHub
                 self.log("步骤2: 点击 GitHub", "STEP")
-                if not self.click(page, [
-                    'button:has-text("GitHub")',
-                    'a:has-text("GitHub")',
-                    '[data-provider="github"]'
-                ], "GitHub"):
-                    self.log("找不到按钮", "ERROR")
-                    self.notify(False, "找不到 GitHub 按钮")
+                start_url = page.url
+                url = start_url
+                clicked = False
+                for attempt in range(3):
+                    if not self.click(page, [
+                        'button:has-text("GitHub")',
+                        'a:has-text("GitHub")',
+                        '[data-provider="github"]'
+                    ], "GitHub"):
+                        self.log("找不到按钮", "ERROR")
+                        self.notify(False, "找不到 GitHub 按钮")
+                        sys.exit(1)
+                    
+                    try:
+                        page.wait_for_load_state('domcontentloaded', timeout=60000)
+                    except:
+                        pass
+                    time.sleep(2)
+                    url = page.url
+                    
+                    if 'github.com' in url or 'github.com/login/oauth/authorize' in url:
+                        clicked = True
+                        break
+                    
+                    if url != start_url and 'claw.cloud' in url and 'signin' not in url.lower():
+                        clicked = True
+                        break
+                    
+                    self.log(f"点击后未跳转，重试 ({attempt + 1}/3)", "WARN")
+                
+                if not clicked:
+                    self.notify(False, "点击 GitHub 后未跳转")
                     sys.exit(1)
                 
-                time.sleep(3)
-                page.wait_for_load_state('networkidle', timeout=120000)
                 self.shot(page, "点击后")
-                url = page.url
                 self.log(f"当前: {url}")
 
                 if 'signin' not in url.lower() and 'claw.cloud' in url and  'github.com' not in url:
